@@ -20,7 +20,6 @@ Default chunk size is 500000 lines.
 Example:
 FileSorter d:\input\source_10240Mb.txt
 
-
 /////////////////////////////////////
 
 Assumptions:
