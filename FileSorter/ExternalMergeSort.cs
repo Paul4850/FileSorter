@@ -1,26 +1,23 @@
-﻿using System.Text;
+﻿using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text;
 
 namespace FileSorter
 {
-	using System;
-	using System.Collections.Generic;
-	using System.Diagnostics;
-	using System.IO;
-	using System.Linq;
-
-	public class ExternalMergeSort
+    public class ExternalMergeSort
 	{
-		public static string separator = ". ";
 		private readonly string inputFilePath;
 		private readonly string outputFilePath;
-		private readonly int chunkSize;
+		private readonly int linesInChunk;
+        private string chunksFolder = "";
 
-		public ExternalMergeSort(string inputFilePath, string outputFilePath, int chunkSize)
+        public ExternalMergeSort(string inputFilePath, string outputFilePath, int linesInChunk, string chunksFolder)
 		{
 			this.inputFilePath = inputFilePath;
 			this.outputFilePath = outputFilePath;
-			this.chunkSize = chunkSize;
-		}
+			this.linesInChunk = linesInChunk;
+			this.chunksFolder = chunksFolder;
+        }
 
 		public void Sort()
 		{
@@ -28,8 +25,8 @@ namespace FileSorter
 			stopwatch.Start();
 			var start = DateTime.Now;
 			Console.WriteLine(start);
-			
-			List<string> tempFiles = SplitAndSortChunks(inputFilePath, chunkSize);
+
+            List<string> tempFiles = SplitAndSortChunks(inputFilePath, linesInChunk, chunksFolder);
 			Console.WriteLine($"SplitAndSortChunks: {stopwatch.Elapsed.ToString(@"hh\:mm\:ss")}");
 			stopwatch.Restart();
 
@@ -46,75 +43,59 @@ namespace FileSorter
 			stopwatch.Stop();
 		}
 
-		class Line : IComparable<Line> {
-			public  string str = "";
-			int pos = 0;
-			int hash = 0;
-			public Line(string str) { 
-				this.str = str;
-				hash = str.GetHashCode();
-				pos = str.IndexOf(separator);
-				Number = int.Parse(str.AsSpan(0, pos));	
-			}
-			int Number { get;  }
-			public ReadOnlySpan<char> AsSpan => str.AsSpan(pos + separator.Length);
-
-			public int CompareTo(Line? other)
-			{
-				if (other == null)
-					return 1;
-				var res = AsSpan.CompareTo(other.AsSpan, StringComparison.Ordinal);
-				if(res != 0)
-					return res;
-				return this.Number.CompareTo(other.Number);
-			}
-			public string Compile() => str;
-		}
-
-		private static List<string> SplitAndSortChunks(string filePath, int chunkSize)
+		private static List<string> SplitAndSortChunks(string filePath, int linesInChunk, string chunksFolder)
 		{
 			int chunkCounter = 0;
-			List<string> tempFiles = new List<string>();
+			List<string> tempFileNames = new List<string>();
+            List<Task> tasks = new List<Task>();
+            object lockObject = new object();
 
-			using (var linesEnum = File.ReadLines(filePath).GetEnumerator())
+            static List<Line> ReadChunk(IEnumerator<string> enumerator, int count)
+            {
+                var chunk = new List<Line>();
+                for (int i = 0; i < count && enumerator.MoveNext(); i++)
+                {
+                    chunk.Add(new Line(enumerator.Current));
+                }
+                return chunk;
+            }
+
+            static void WriteChunk(List<Line> chunk, string fileName)
+            {
+                using (var writer = new StreamWriter(fileName, false, System.Text.Encoding.ASCII, bufferSize: 8192))
+                {
+                    foreach (var line in chunk.OrderBy(line => line))
+                        writer.WriteLine(line.Compile());
+                }
+            }
+
+            using (var linesEnumerator = File.ReadLines(filePath).GetEnumerator())
 			{
-				List<Task> tasks = new List<Task>(); 
-
-				while (true)
+                while (true)
 				{
-					var chunk = new List<Line>();
+					var chunk = ReadChunk(linesEnumerator, linesInChunk);
 
-					for (int i = 0; i < chunkSize && linesEnum.MoveNext(); i++)
-						chunk.Add(new Line(linesEnum.Current));
-
-					if (chunk.Count == 0)
+                    if (chunk.Count == 0)
 						break;
-
-					string tempFileName = $"temp_chunk_{chunkCounter}.txt";
-					chunkCounter++;
+					
+                    string tempFileName = Path.Combine(chunksFolder, $"temp_chunk_{chunkCounter}.txt");
+                    chunkCounter++;
 
 					tasks.Add(Task.Run(() =>
 					{
-						var sortedChunk = chunk.OrderBy(line => line).ToList();
+						WriteChunk(chunk, tempFileName);
 
-						using (var writer = new StreamWriter(tempFileName, false, System.Text.Encoding.ASCII, 8192))
+                        lock (lockObject)
 						{
-							foreach (var line in sortedChunk)
-							{
-								writer.WriteLine(line.Compile());
-							}
-						}
-
-						lock (tempFiles)
-						{
-							tempFiles.Add(tempFileName);
+                            tempFileNames.Add(tempFileName);
 						}
 					}));
 				}
 				Task.WaitAll(tasks.ToArray());
 			}
-			return tempFiles;
-		}
+			return tempFileNames;
+        }
+
 
 		private static void MergeChunks(List<string> tempFiles, string outputFilePath)
 		{
@@ -145,8 +126,7 @@ namespace FileSorter
 					while (minHeap.Count > 0)
 					{
 						var (minLine, minIndex) = minHeap.Dequeue();
-						string finalLine = minLine.Compile();
-						writer.WriteLine(finalLine);
+						writer.WriteLine(minLine.Compile());
 
 						if (!readers[minIndex].EndOfStream)
 						{
@@ -162,6 +142,8 @@ namespace FileSorter
 							} while (nextLine == null);
 						}
 					}
+
+
 				}
 				finally
 				{

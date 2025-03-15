@@ -16,7 +16,7 @@ if (!File.Exists(filePath))
 	return;
 }
 
-string folder = Path.GetDirectoryName(filePath);
+string folder = Path.GetDirectoryName(filePath)!;
 string fileName = Path.GetFileName(filePath);
 
 int chunkSize = 500_000;
@@ -29,6 +29,6 @@ if (args.Length > 1)
 string outputFile = Path.Combine(folder, Path.GetFileNameWithoutExtension(fileName) + "_sorted.txt");
 
 Console.WriteLine($"File {filePath}, chunk {chunkSize}");
-var fileSorter = new ExternalMergeSort(filePath, outputFile, chunkSize);
+var fileSorter = new ExternalMergeSort(filePath, outputFile, chunkSize, folder);
 fileSorter.Sort();
 Console.WriteLine("Sorted");

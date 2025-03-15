@@ -5,30 +5,33 @@ namespace FileCreator
 {
 	public class RandomWordStringGenerator
 	{
+		Random random = new Random();
 		private int maxLength = 1024;
-		private int averageWordLength = 5;
 
-		private static readonly Random _random = new Random();
-		private readonly List<string> _words = new List<string>();
-		private readonly int _meanWordsInLine = 10;
-		
-		public RandomWordStringGenerator(IEnumerable<string> words, int meanWordsInLine) {
-			var alphanumericRegex = new Regex(@"^[a-zA-Z0-9]+$");
-			_meanWordsInLine = meanWordsInLine;
-			_words = words.Where(s => alphanumericRegex.IsMatch(s)).ToList();
+		private readonly List<string> words = new List<string>();
+		private readonly int meanWordsInLine = 10;
+        private readonly Regex alphanumericRegex = new Regex(@"^[a-zA-Z0-9]+$");
+
+        public RandomWordStringGenerator(IEnumerable<string> words, int meanWordsInLine) 
+		{
+			this.meanWordsInLine = meanWordsInLine;
+			this.words = words.Where(s => alphanumericRegex.IsMatch(s)).ToList();
+			if (words.Count() == 0)
+				throw new ArgumentException($"No valid words in the {nameof(words)} collection");
 		}
 
-		public string GenerateRandomWordString()
+		public string Generate()
 		{
-			//Generate realistic string length distribution.
-			int wordCount = GetNormal(_meanWordsInLine, (maxLength/averageWordLength - _meanWordsInLine)/4);
-			if (wordCount <= 0) return string.Empty;
+            //Generate realistic string length distribution.
+            int wordCount = GenerateNormalDistributedValue(meanWordsInLine, (double)meanWordsInLine /3);
+			if (wordCount <= 0)
+				wordCount = 1;
 
-			var result = new StringBuilder();
+            var result = new StringBuilder();
 
 			for (int i = 0; i < wordCount; i++)
 			{
-				string word = _words[_random.Next(_words.Count)];
+				string word = words[random.Next(words.Count)];
 				if (word.Length < 1) 
 					continue;
 				if (i == 0)
@@ -39,7 +42,7 @@ namespace FileCreator
 
 				if (i < wordCount - 1)
 				{
-					result.Append(" ");
+					result.Append(' ');
 				}
 			}
 			var str = result.ToString();
@@ -47,18 +50,16 @@ namespace FileCreator
 			return str;
 		}
 
-		Random rand = new Random();
-
 		/// <summary>
 		/// Use Box-Muller transform to emulate normal distribution
 		/// </summary>
 		/// <param name="mean"></param>
 		/// <param name="stdDev"></param>
 		/// <returns></returns>
-		int GetNormal(int mean, double stdDev)
+		int GenerateNormalDistributedValue(int mean, double stdDev)
 		{
-			double u1 = 1.0 - rand.NextDouble(); //uniform(0,1] random doubles
-			double u2 = 1.0 - rand.NextDouble();
+			double u1 = 1.0 - random.NextDouble(); //uniform(0,1] random doubles
+			double u2 = 1.0 - random.NextDouble();
 			double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) *
 						 Math.Sin(2.0 * Math.PI * u2); //random normal(0,1)
 			double randNormal =

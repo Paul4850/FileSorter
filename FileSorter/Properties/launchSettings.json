@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FileSorter": {
+      "commandName": "Project",
+      "commandLineArgs": "d:\\source\\source_1000Mb.txt"
+    }
+  }
+}

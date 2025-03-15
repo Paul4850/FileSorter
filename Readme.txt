@@ -36,7 +36,7 @@ RAM: 16 GB
 SSD drive
 OS: Windows 11
 
-Performance test reults:
+Performance test results:
 
 1Gb
 File d:\input\source_1024Mb.txt, chunk 500000
